@@ -1,0 +1,184 @@
+[project]
+name = "mcp-d365-mcp-implement"
+version = "0.1.0"
+description = "MCP server for Dynamics 365 Field Service integration with Claude AI"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "antony", email = "letsvoltin@voltes.onmicrosoft.com" }
+]
+keywords = ["mcp", "dynamics365", "field-service", "claude", "ai", "integration"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# ============================================
+# Core Dependencies
+# ============================================
+dependencies = [
+    # MCP Framework
+    "fastmcp>=0.2.0",
+    
+    # Microsoft Authentication
+    "msal>=1.31.0",
+    
+    # HTTP Client (async support)
+    "httpx>=0.27.0",
+    
+    # Data Validation
+    "pydantic>=2.10.0",
+    
+    # Environment Variables
+    "python-dotenv>=1.0.0",
+]
+
+# ============================================
+# Optional Development Dependencies
+# ============================================
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    
+    # Code Formatting
+    "black>=24.0.0",
+    
+    # Linting
+    "ruff>=0.7.0",
+    
+    # Type Checking
+    "mypy>=1.8.0",
+]
+
+# ============================================
+# Entry Points (CLI Commands)
+# ============================================
+[project.scripts]
+# Creates 'mcp-server' command that runs main() function
+mcp-server = "mcp_d365_server.server:main"
+
+# ============================================
+# Build System Configuration
+# ============================================
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ============================================
+# Black Code Formatter Configuration
+# ============================================
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.uv
+  | build
+  | dist
+)/
+'''
+
+# ============================================
+# Ruff Linter Configuration
+# ============================================
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+# Enable specific rule sets
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+# Ignore certain rules in specific files
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+
+# ============================================
+# Pytest Configuration
+# ============================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--showlocals",
+    "-v",
+]
+
+# Custom test markers
+markers = [
+    "integration: Integration tests that connect to real D365 instance",
+    "unit: Fast unit tests with mocked dependencies",
+    "slow: Tests that take longer than 1 second",
+]
+
+# ============================================
+# MyPy Type Checker Configuration
+# ============================================
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+# Strict mode (uncomment when ready)
+# strict = true
+
+# ============================================
+# Coverage Configuration
+# ============================================
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+# Fail if coverage is below this threshold
+fail_under = 70
+
+# ============================================
+# Hatch Build Configuration
+# ============================================
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_d365_server"]
