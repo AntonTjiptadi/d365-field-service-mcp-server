@@ -63,7 +63,7 @@ dev = [
 # ============================================
 [project.scripts]
 # Creates 'mcp-server' command that runs main() function
-mcp-server = "mcp_d365_server.server:main"
+mcp-server = "mcp_d365fs_server.server:main"
 
 # ============================================
 # Build System Configuration
@@ -181,4 +181,4 @@ fail_under = 70
 # Hatch Build Configuration
 # ============================================
 [tool.hatch.build.targets.wheel]
-packages = ["src/mcp_d365_server"]
+packages = ["src/mcp_d365fs_server"]
