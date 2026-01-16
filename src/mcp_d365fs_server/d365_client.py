@@ -1,11 +1,13 @@
 """
-D365 Client Module - FIXED VERSION
+D365 Client Module - ENCODING-SAFE VERSION
 
 This module provides a client for interacting with D365 Field Service OData API.
+FIXED: All output is ASCII-safe and goes to stderr to avoid STDIO interference.
 Uses minimal, guaranteed-to-exist fields to avoid field name errors.
 """
 
 import os
+import sys
 from typing import Optional, List, Dict, Any
 import httpx
 
@@ -26,7 +28,8 @@ class D365Client:
         self,
         base_url: str,
         authenticator: D365Authenticator,
-        api_version: str = "v9.2"
+        api_version: str = "v9.2",
+        verbose: bool = False
     ):
         """
         Initialize D365 client.
@@ -35,19 +38,22 @@ class D365Client:
             base_url: D365 instance URL (e.g., https://yourorg.crm.dynamics.com)
             authenticator: D365Authenticator instance for getting tokens
             api_version: OData API version (default: v9.2)
+            verbose: If True, print diagnostic messages to stderr (default: False)
         """
         self.base_url = base_url.rstrip('/')
         self.authenticator = authenticator
         self.api_version = api_version
         self.api_endpoint = f"{self.base_url}/api/data/{api_version}"
+        self.verbose = verbose
         
         # HTTP client for making requests
         self._client: Optional[httpx.AsyncClient] = None
         
-        print(f"✅ D365Client initialized")
-        print(f"   Base URL: {self.base_url}")
-        print(f"   API Version: {api_version}")
-        print(f"   API Endpoint: {self.api_endpoint}")
+        if self.verbose:
+            print("D365Client initialized", file=sys.stderr)
+            print(f"  Base URL: {self.base_url}", file=sys.stderr)
+            print(f"  API Version: {api_version}", file=sys.stderr)
+            print(f"  API Endpoint: {self.api_endpoint}", file=sys.stderr)
     
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -121,9 +127,14 @@ class D365Client:
             
         except httpx.HTTPStatusError as e:
             error_msg = f"D365 API error ({e.response.status_code}): {e.response.text}"
+            if self.verbose:
+                print(error_msg, file=sys.stderr)
             raise Exception(error_msg) from e
         except Exception as e:
-            raise Exception(f"Request failed: {str(e)}") from e
+            error_msg = f"Request failed: {str(e)}"
+            if self.verbose:
+                print(error_msg, file=sys.stderr)
+            raise Exception(error_msg) from e
     
     async def query_work_orders(
         self,
@@ -304,76 +315,78 @@ async def test_d365_client():
     from dotenv import load_dotenv
     load_dotenv()
     
-    print("=" * 60)
-    print("   D365 Client Test")
-    print("=" * 60)
-    print()
+    print("=" * 60, file=sys.stderr)
+    print("   D365 Client Test", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+    print(file=sys.stderr)
     
     # Load configuration
     d365_url = os.getenv("D365_URL")
-    print(f"📋 Configuration loaded")
-    print(f"   D365 URL: {d365_url}")
-    print()
+    print("Configuration loaded", file=sys.stderr)
+    print(f"  D365 URL: {d365_url}", file=sys.stderr)
+    print(file=sys.stderr)
     
     # Create authenticator
-    print("🔧 Creating authenticator...")
+    print("Creating authenticator...", file=sys.stderr)
     authenticator = D365Authenticator(
         tenant_id=os.getenv("TENANT_ID"),
         client_id=os.getenv("CLIENT_ID"),
         client_secret=os.getenv("CLIENT_SECRET"),
-        scope=os.getenv("D365_SCOPE")
+        scope=os.getenv("D365_SCOPE"),
+        verbose=True
     )
-    print()
+    print(file=sys.stderr)
     
     # Create D365 client
-    print("🔧 Creating D365 client...")
+    print("Creating D365 client...", file=sys.stderr)
     client = D365Client(
         base_url=d365_url,
-        authenticator=authenticator
+        authenticator=authenticator,
+        verbose=True
     )
-    print()
+    print(file=sys.stderr)
     
     try:
         # Test 1: Query work orders
-        print("📊 Querying work orders (top 5)...")
+        print("Querying work orders (top 5)...", file=sys.stderr)
         try:
             work_orders = await client.query_work_orders(top=5)
-            print(f"✅ Retrieved {len(work_orders)} work orders")
+            print(f"Retrieved {len(work_orders)} work orders", file=sys.stderr)
             for wo in work_orders[:3]:  # Show first 3
-                print(f"   - {wo.get('msdyn_name', 'Unnamed')} (ID: {wo.get('msdyn_workorderid', 'N/A')[:8]}...)")
+                print(f"  - {wo.get('msdyn_name', 'Unnamed')} (ID: {wo.get('msdyn_workorderid', 'N/A')[:8]}...)", file=sys.stderr)
         except Exception as e:
-            print(f"❌ Error querying work orders: {e}")
-        print()
+            print(f"Error querying work orders: {e}", file=sys.stderr)
+        print(file=sys.stderr)
         
         # Test 2: Query bookable resources
-        print("👥 Querying bookable resources (top 5)...")
+        print("Querying bookable resources (top 5)...", file=sys.stderr)
         try:
             resources = await client.query_bookable_resources(top=5)
-            print(f"✅ Retrieved {len(resources)} resources")
+            print(f"Retrieved {len(resources)} resources", file=sys.stderr)
             for res in resources[:3]:  # Show first 3
-                print(f"   - {res.get('name', 'Unnamed')} (ID: {res.get('bookableresourceid', 'N/A')[:8]}...)")
+                print(f"  - {res.get('name', 'Unnamed')} (ID: {res.get('bookableresourceid', 'N/A')[:8]}...)", file=sys.stderr)
         except Exception as e:
-            print(f"❌ Error querying resources: {e}")
-        print()
+            print(f"Error querying resources: {e}", file=sys.stderr)
+        print(file=sys.stderr)
         
         # Test 3: Query accounts
-        print("🏢 Querying service accounts (top 5)...")
+        print("Querying service accounts (top 5)...", file=sys.stderr)
         try:
             accounts = await client.query_accounts(top=5)
-            print(f"✅ Retrieved {len(accounts)} accounts")
+            print(f"Retrieved {len(accounts)} accounts", file=sys.stderr)
             for acc in accounts[:3]:  # Show first 3
-                print(f"   - {acc.get('name', 'Unnamed')} (ID: {acc.get('accountid', 'N/A')[:8]}...)")
+                print(f"  - {acc.get('name', 'Unnamed')} (ID: {acc.get('accountid', 'N/A')[:8]}...)", file=sys.stderr)
         except Exception as e:
-            print(f"❌ Error querying accounts: {e}")
-        print()
+            print(f"Error querying accounts: {e}", file=sys.stderr)
+        print(file=sys.stderr)
         
     finally:
         # Clean up
         await client.close()
-        print("✅ D365Client closed")
+        print("D365Client closed", file=sys.stderr)
     
-    print()
-    print("🎉 Test complete!")
+    print(file=sys.stderr)
+    print("Test complete!", file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -1,22 +1,12 @@
 """
-OAuth2 Authentication Module for Dynamics 365
+OAuth2 Authentication Module for Dynamics 365 - ENCODING-SAFE VERSION
 
 This module handles authentication with Azure AD using the MSAL library.
-It manages access tokens for D365 API calls using the client credentials flow.
-
-Main responsibilities:
-- Authenticate with Azure AD using client credentials (App Registration)
-- Acquire and cache access tokens
-- Provide tokens to d365_client for API requests
-- Handle token refresh automatically
-
-OAuth2 Flow Used: Client Credentials Flow
-- For server-to-server authentication
-- No user interaction required
-- Uses CLIENT_ID, CLIENT_SECRET, TENANT_ID from .env
+FIXED: All output is ASCII-safe and goes to stderr to avoid STDIO interference.
 """
 
 import os
+import sys
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
@@ -27,19 +17,7 @@ class D365Authenticator:
     """
     Handles OAuth2 authentication with Azure AD for D365 access.
     
-    This class uses MSAL (Microsoft Authentication Library) to:
-    1. Create a confidential client application
-    2. Acquire access tokens using client credentials
-    3. Cache tokens to avoid unnecessary auth calls
-    4. Automatically refresh tokens when needed
-    
-    Attributes:
-        tenant_id: Azure AD tenant ID
-        client_id: App registration client ID
-        client_secret: App registration client secret
-        scope: D365 API scope (usually https://yourorg.crm.dynamics.com/.default)
-        app: MSAL ConfidentialClientApplication instance
-        _token_cache: Cached token with expiration
+    Uses MSAL (Microsoft Authentication Library) for client credentials flow.
     """
     
     def __init__(
@@ -47,7 +25,8 @@ class D365Authenticator:
         tenant_id: str,
         client_id: str,
         client_secret: str,
-        scope: str
+        scope: str,
+        verbose: bool = False
     ):
         """
         Initialize the authenticator with Azure AD credentials.
@@ -57,11 +36,13 @@ class D365Authenticator:
             client_id: App registration application (client) ID
             client_secret: App registration client secret
             scope: API scope (e.g., https://yourorg.crm.dynamics.com/.default)
+            verbose: If True, print diagnostic messages to stderr (default: False)
         """
         self.tenant_id = tenant_id
         self.client_id = client_id
         self.client_secret = client_secret
         self.scope = scope
+        self.verbose = verbose
         
         # Build the authority URL for Azure AD
         self.authority = f"https://login.microsoftonline.com/{tenant_id}"
@@ -76,10 +57,11 @@ class D365Authenticator:
         # Token cache (stores token and expiration time)
         self._token_cache: Optional[Dict[str, Any]] = None
         
-        print(f"✅ D365Authenticator initialized")
-        print(f"   Tenant ID: {tenant_id}")
-        print(f"   Client ID: {client_id}")
-        print(f"   Scope: {scope}")
+        if self.verbose:
+            print("D365Authenticator initialized", file=sys.stderr)
+            print(f"  Tenant ID: {tenant_id}", file=sys.stderr)
+            print(f"  Client ID: {client_id}", file=sys.stderr)
+            print(f"  Scope: {scope}", file=sys.stderr)
     
     
     async def get_token(self) -> Optional[str]:
@@ -94,19 +76,16 @@ class D365Authenticator:
         
         Returns:
             Access token string if successful, None if authentication fails
-        
-        Example:
-            token = await authenticator.get_token()
-            if token:
-                headers = {"Authorization": f"Bearer {token}"}
         """
         # Check if we have a valid cached token
         if self._is_token_valid():
-            print("🔑 Using cached access token")
+            if self.verbose:
+                print("Using cached access token", file=sys.stderr)
             return self._token_cache["access_token"]
         
         # Need to acquire a new token
-        print("🔄 Acquiring new access token from Azure AD...")
+        if self.verbose:
+            print("Acquiring new access token from Azure AD...", file=sys.stderr)
         
         try:
             # Use MSAL to acquire token with client credentials
@@ -117,8 +96,9 @@ class D365Authenticator:
                 # Cache the token with expiration
                 self._cache_token(result)
                 
-                print("✅ Successfully acquired access token")
-                print(f"   Token expires in: {result.get('expires_in', 0)} seconds")
+                if self.verbose:
+                    print("Successfully acquired access token", file=sys.stderr)
+                    print(f"  Expires in: {result.get('expires_in', 0)} seconds", file=sys.stderr)
                 
                 return result["access_token"]
             else:
@@ -126,24 +106,19 @@ class D365Authenticator:
                 error = result.get("error", "Unknown error")
                 error_description = result.get("error_description", "No description")
                 
-                print(f"❌ Failed to acquire token")
-                print(f"   Error: {error}")
-                print(f"   Description: {error_description}")
+                print(f"Failed to acquire token: {error}", file=sys.stderr)
+                print(f"  Description: {error_description}", file=sys.stderr)
                 
                 return None
                 
         except Exception as e:
-            print(f"❌ Exception during token acquisition: {e}")
+            print(f"Exception during token acquisition: {e}", file=sys.stderr)
             return None
     
     
     def _is_token_valid(self) -> bool:
         """
         Check if the cached token is still valid.
-        
-        A token is considered valid if:
-        1. We have a cached token
-        2. The token hasn't expired yet (with 5-minute buffer)
         
         Returns:
             True if cached token is valid, False otherwise
@@ -184,32 +159,23 @@ class D365Authenticator:
             "token_type": token_result.get("token_type", "Bearer")
         }
         
-        print(f"💾 Token cached until {expiration.strftime('%Y-%m-%d %H:%M:%S')}")
+        if self.verbose:
+            print(f"Token cached until {expiration.strftime('%Y-%m-%d %H:%M:%S')}", file=sys.stderr)
     
     
     def clear_cache(self) -> None:
-        """
-        Clear the cached token.
-        
-        Call this if you want to force a new token acquisition,
-        for example after configuration changes or authentication errors.
-        """
+        """Clear the cached token."""
         self._token_cache = None
-        print("🗑️  Token cache cleared")
+        if self.verbose:
+            print("Token cache cleared", file=sys.stderr)
     
     
     def get_token_info(self) -> Dict[str, Any]:
         """
         Get information about the current token.
         
-        Useful for debugging and monitoring.
-        
         Returns:
-            Dictionary with token information:
-            - has_token: Whether a token is cached
-            - is_valid: Whether the cached token is still valid
-            - expires_in: Seconds until expiration (if valid)
-            - expiration: Expiration datetime (if valid)
+            Dictionary with token information
         """
         if not self._token_cache:
             return {
@@ -242,22 +208,14 @@ class D365Authenticator:
 async def test_authentication():
     """
     Test the D365 authentication.
-    
-    This function can be run standalone to verify your credentials work:
-        python -m src.mcp_d365fs_server.auth
-    
-    It will:
-    1. Load credentials from .env
-    2. Create authenticator
-    3. Attempt to get a token
-    4. Display results
+    Run with: python -m src.mcp_d365fs_server.auth
     """
     from dotenv import load_dotenv
     
-    print("=" * 60)
-    print("   D365 Authentication Test")
-    print("=" * 60)
-    print()
+    print("=" * 60, file=sys.stderr)
+    print("   D365 Authentication Test", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+    print(file=sys.stderr)
     
     # Load environment variables
     load_dotenv()
@@ -270,59 +228,57 @@ async def test_authentication():
     
     # Validate credentials are present
     if not all([tenant_id, client_id, client_secret, scope]):
-        print("❌ Missing credentials in .env file")
-        print("   Required: TENANT_ID, CLIENT_ID, CLIENT_SECRET, D365_SCOPE")
+        print("Missing credentials in .env file", file=sys.stderr)
+        print("  Required: TENANT_ID, CLIENT_ID, CLIENT_SECRET, D365_SCOPE", file=sys.stderr)
         return
     
-    print("📋 Credentials loaded from .env")
-    print(f"   Tenant ID: {tenant_id}")
-    print(f"   Client ID: {client_id}")
-    print(f"   Client Secret: {'*' * len(client_secret)}")
-    print(f"   Scope: {scope}")
-    print()
+    print("Configuration loaded from .env", file=sys.stderr)
+    print(f"  Tenant ID: {tenant_id}", file=sys.stderr)
+    print(f"  Client ID: {client_id}", file=sys.stderr)
+    print(f"  Scope: {scope}", file=sys.stderr)
+    print(file=sys.stderr)
     
-    # Create authenticator
-    print("🔧 Creating authenticator...")
+    # Create authenticator with verbose mode for testing
+    print("Creating authenticator...", file=sys.stderr)
     authenticator = D365Authenticator(
         tenant_id=tenant_id,
         client_id=client_id,
         client_secret=client_secret,
-        scope=scope
+        scope=scope,
+        verbose=True  # Enable verbose mode for testing
     )
-    print()
+    print(file=sys.stderr)
     
     # Test token acquisition
-    print("🔐 Testing token acquisition...")
+    print("Testing token acquisition...", file=sys.stderr)
     token = await authenticator.get_token()
-    print()
+    print(file=sys.stderr)
     
     if token:
-        print("✅ SUCCESS! Authentication working correctly")
-        print(f"   Token: {token[:50]}...")
-        print(f"   Token length: {len(token)} characters")
+        print("SUCCESS! Authentication working correctly", file=sys.stderr)
+        print(f"  Token: {token[:50]}...", file=sys.stderr)
+        print(f"  Token length: {len(token)} characters", file=sys.stderr)
         
         # Show token info
         info = authenticator.get_token_info()
-        print()
-        print("📊 Token Information:")
-        print(f"   Valid: {info['is_valid']}")
-        print(f"   Expires in: {info['expires_in']} seconds")
-        print(f"   Expiration: {info['expiration']}")
+        print(file=sys.stderr)
+        print("Token Information:", file=sys.stderr)
+        print(f"  Valid: {info['is_valid']}", file=sys.stderr)
+        print(f"  Expires in: {info['expires_in']} seconds", file=sys.stderr)
+        print(f"  Expiration: {info['expiration']}", file=sys.stderr)
         
-        print()
-        print("🎉 You can now use this authenticator with d365_client!")
+        print(file=sys.stderr)
+        print("You can now use this authenticator with d365_client!", file=sys.stderr)
     else:
-        print("❌ FAILED! Could not acquire token")
-        print()
-        print("🔍 Troubleshooting:")
-        print("   1. Verify credentials in .env are correct")
-        print("   2. Check App Registration has API permissions")
-        print("   3. Verify Admin Consent was granted")
-        print("   4. Check TENANT_ID, CLIENT_ID, CLIENT_SECRET are correct")
-        print("   5. Verify D365_SCOPE is correct (https://yourorg.crm.dynamics.com/.default)")
+        print("FAILED! Could not acquire token", file=sys.stderr)
+        print(file=sys.stderr)
+        print("Troubleshooting:", file=sys.stderr)
+        print("  1. Verify credentials in .env are correct", file=sys.stderr)
+        print("  2. Check App Registration has API permissions", file=sys.stderr)
+        print("  3. Verify Admin Consent was granted", file=sys.stderr)
+        print("  4. Verify D365_SCOPE is correct", file=sys.stderr)
 
 
-# Allow running as standalone module for testing
 if __name__ == "__main__":
     import asyncio
     asyncio.run(test_authentication())
