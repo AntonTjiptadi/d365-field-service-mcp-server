@@ -1,0 +1,102 @@
+# ============================================
+# .dockerignore
+# ============================================
+# Exclude files/folders from Docker build context
+# This speeds up builds and reduces image size
+# ============================================
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# UV cache
+.uv/
+
+# Environment files (secrets should NOT be in image)
+.env
+.env.*
+*.env
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# Node modules (if any)
+node_modules/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Large files
+*.xlsx
+*.csv
+*.zip
+*.tar.gz
+
+# Docker files (don't copy into container)
+Dockerfile*
+docker-compose.yml
+.dockerignore
+
+# Deployment scripts
+deploy/
+scripts/
+
+# Keep these files
+!pyproject.toml
+!README.md
