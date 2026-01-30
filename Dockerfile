@@ -86,6 +86,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Default command: Run MCP server
 # Note: In production, you'd typically override this with specific commands
+EXPOSE 8000
+
 CMD ["uv", "run", "mcp-server"]
 
 # ============================================

@@ -242,15 +242,36 @@ def main():
     """
     Main entry point for the MCP server.
     
-    This function is called when you run: uv run mcp-server
-    It starts the FastMCP server and keeps it running until interrupted.
+    Supports two transport modes:
+    - STDIO (default): For Claude Desktop integration
+    - HTTP: For Copilot Studio and REST clients
+    
+    Set MCP_TRANSPORT environment variable to "http" for HTTP mode.
     """
     try:
-        # Start the MCP server (blocks until stopped)
-        mcp.run()
+        # Get transport mode from environment variable
+        transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+        
+        if transport == "http":
+            # HTTP mode for Copilot Studio / REST clients
+            port = int(os.getenv("API_PORT", "8000"))
+            host = os.getenv("API_HOST", "0.0.0.0")
+            
+            print(f"🌐 Starting MCP server in HTTP mode on {host}:{port}", file=sys.stderr)
+            print(f"📡 API available at: http://{host}:{port}", file=sys.stderr)
+            print(f"📚 Tools will be available as HTTP endpoints", file=sys.stderr)
+            
+            # Start server in HTTP mode
+            mcp.run(transport="http", host=host, port=port)
+        else:
+            # STDIO mode for Claude Desktop (default)
+            print("📟 Starting MCP server in STDIO mode (for Claude Desktop)", file=sys.stderr)
+            
+            # Start server in STDIO mode
+            mcp.run()
         
     except KeyboardInterrupt:
-        print("Server stopped by user", file=sys.stderr)
+        print("\nServer stopped by user", file=sys.stderr)
     except Exception as e:
         print(f"Server error: {e}", file=sys.stderr)
         sys.exit(1)

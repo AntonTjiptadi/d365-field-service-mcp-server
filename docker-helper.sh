@@ -101,6 +101,44 @@ run_detached() {
     fi
 }
 
+# Function to run container in HTTP mode (for Copilot Studio)
+run_http() {
+    check_env_file
+    
+    print_info "Running container in HTTP mode: ${FULL_IMAGE_NAME}"
+    print_info "API will be available at: http://localhost:8000"
+    print_info "MCP tools exposed as HTTP endpoints"
+    
+    docker run -it --rm \
+        --name mcp-d365-server-http \
+        --env-file .env \
+        -e MCP_TRANSPORT=http \
+        -p 8000:8000 \
+        ${FULL_IMAGE_NAME}
+}
+
+# Function to run HTTP mode in background
+run_http_detached() {
+    check_env_file
+    
+    print_info "Running container in HTTP mode (background): ${FULL_IMAGE_NAME}"
+    
+    docker run -d \
+        --name mcp-d365-server-http \
+        --env-file .env \
+        -e MCP_TRANSPORT=http \
+        -p 8000:8000 \
+        --restart unless-stopped \
+        ${FULL_IMAGE_NAME}
+    
+    if [ $? -eq 0 ]; then
+        print_success "HTTP API started in background"
+        print_info "API available at: http://localhost:8000"
+        print_info "View logs: docker logs -f mcp-d365-server-http"
+        print_info "Stop container: docker stop mcp-d365-server-http"
+    fi
+}
+
 # Function to test container
 test_container() {
     check_env_file
@@ -180,6 +218,8 @@ show_help() {
     echo "  build       Build Docker image"
     echo "  run         Run container interactively (foreground)"
     echo "  detach      Run container in background"
+    echo "  http        Run container in HTTP mode (for Copilot Studio)"
+    echo "  http-detach Run HTTP container in background"
     echo "  test        Test container with MCP Inspector"
     echo "  push        Push image to Azure Container Registry"
     echo "  logs        Show container logs"
@@ -208,6 +248,12 @@ case "$1" in
         ;;
     detach)
         run_detached
+        ;;
+    http)
+        run_http
+        ;;
+    http-detach)
+        run_http_detached
         ;;
     test)
         test_container
