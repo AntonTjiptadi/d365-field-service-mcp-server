@@ -139,70 +139,78 @@ class D365Client:
     async def query_work_orders(
         self,
         filter_query: Optional[str] = None,
-        select_fields: Optional[List[str]] = None,
+        expand_service_account: bool = False,
         top: int = 10,
-        order_by: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Query work orders from D365 Field Service.
-        
-        FIXED VERSION: Uses only guaranteed system fields that exist in all D365 instances.
-        
-        Args:
-            filter_query: OData filter expression (e.g., "msdyn_systemstatus eq 690970000")
-            select_fields: List of fields to return (default: minimal guaranteed fields)
-            top: Number of records to return (max 5000)
-            order_by: Field to sort by (e.g., "createdon desc")
-        
-        Returns:
-            List of work order dictionaries
-        """
-        # Use ONLY guaranteed system fields that exist in ALL D365 instances
-        if not select_fields:
-            select_fields = [
-                "msdyn_workorderid",  # Primary key - always exists
-                "msdyn_name",          # Name field - always exists  
-                "createdon",           # System field - always exists
-                "modifiedon"           # System field - always exists
-            ]
-        
-        # Build OData query URL
-        url = f"{self.api_endpoint}/msdyn_workorders"
-        
-        params = {
-            "$select": ",".join(select_fields),
-            "$top": str(top)
-        }
-        
-        if filter_query:
-            params["$filter"] = filter_query
-        
-        if order_by:
-            params["$orderby"] = order_by
-        else:
-            params["$orderby"] = "createdon desc"  # Default: newest first
-        
-        # Make request
-        result = await self._make_request("GET", url, params=params)
-        
-        return result.get("value", [])
-    
-    async def get_work_order_by_id(
-        self,
-        work_order_id: str,
-        select_fields: Optional[List[str]] = None
+        include_count: bool = False
     ) -> Dict[str, Any]:
         """
-        Get a specific work order by ID.
-        
+        Query work orders with optional filtering and expansion.
+    
         Args:
-            work_order_id: The GUID of the work order
-            select_fields: List of fields to return (default: minimal fields)
+            filter_query: OData filter string
+            expand_service_account: Whether to expand service account details
+            top: Maximum number of records (use None for all records)
+            include_count: Whether to include total count in response
         
         Returns:
-            Work order dictionary
+            Dictionary with:
+            - value: List of work orders
+            - count: Total count (if include_count=True)
+            - returned_count: Number of records returned
         """
-        # Use minimal fields by default
+        try:
+            url = f"{self.api_endpoint}/msdyn_workorders"
+            
+            params = {
+                "$select": "msdyn_workorderid,msdyn_name,createdon,modifiedon,msdyn_systemstatus,statuscode," \
+                "msdyn_totalestimatedduration,_msdyn_serviceaccount_value",
+                
+                "$orderby": "createdon desc"
+            }
+            
+            # Add top parameter if specified
+            if top is not None:
+                params["$top"] = str(top)
+            
+            # Add count parameter if requested
+            if include_count:
+                params["$count"] = "true"
+            
+            if filter_query:
+                params["$filter"] = filter_query
+            
+            if expand_service_account:
+                # IMPORTANT: Use lowercase logical name 'msdyn_serviceaccount'
+                params["$expand"] = "msdyn_serviceaccount($select=name,accountid)"
+            
+            result = await self._make_request("GET", url, params=params)
+            
+            # Return structured response with metadata
+            work_orders = result.get("value", [])
+            response = {
+                "value": work_orders,
+                "returned_count": len(work_orders)
+            }
+            
+            # Add total count if available
+            if "@odata.count" in result:
+                response["total_count"] = result["@odata.count"]
+            
+            return response
+        
+        except Exception as e:
+            # Re-raise with more context
+            raise Exception(f"D365 API query failed: {str(e)}")
+    
+    async def get_work_order_by_id(
+    self,
+    work_order_id: str,
+    select_fields: Optional[List[str]] = None,
+    expand_technician: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Get a specific work order by ID with optional technician info.
+        """
         if not select_fields:
             select_fields = [
                 "msdyn_workorderid",
@@ -211,13 +219,64 @@ class D365Client:
                 "modifiedon"
             ]
         
-        url = f"{self.api_endpoint}/msdyn_workorders({work_order_id})"
-        
+        # Get basic work order info
+        url = f"{self.api_endpoint}/msdyn_workorders"
         params = {
-            "$select": ",".join(select_fields)
+            "$select": ",".join(select_fields),
+            "$filter": f"msdyn_workorderid eq {work_order_id}",
+            "$top": "1"
         }
         
-        return await self._make_request("GET", url, params=params)
+        result = await self._make_request("GET", url, params=params)
+        items = result.get("value", [])
+        if not items:
+            raise Exception(f"Work order {work_order_id} not found")
+        
+        work_order = items[0]
+        
+        # Get bookings with technician info if requested
+        if expand_technician:
+            bookings_url = f"{self.api_endpoint}/bookableresourcebookings"
+            bookings_params = {
+                "$filter": f"_msdyn_workorder_value eq {work_order_id}",
+                "$expand": "Resource($select=name,bookableresourceid)",
+                "$select": "bookableresourcebookingid,name,starttime,endtime,duration"
+            }
+            
+            bookings_result = await self._make_request("GET", bookings_url, params=bookings_params)
+            work_order["bookings"] = bookings_result.get("value", [])
+        
+        return work_order
+    
+    async def get_work_order_by_name(
+    self,
+    work_order_name: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Find a work order by its name and return basic info.
+        
+        Args:
+            work_order_name: The work order name (e.g., "Sample_WO00010")
+        
+        Returns:
+            Dictionary with msdyn_workorderid and msdyn_name, or None if not found
+        """
+        try:
+            url = f"{self.api_endpoint}/msdyn_workorders"
+            
+            params = {
+                "$select": "msdyn_workorderid,msdyn_name",
+                "$filter": f"msdyn_name eq '{work_order_name}'",
+                "$top": "1"
+            }
+            
+            result = await self._make_request("GET", url, params=params)
+            items = result.get("value", [])
+            
+            return items[0] if items else None
+            
+        except Exception as e:
+            raise Exception(f"Failed to lookup work order by name: {str(e)}")
     
     async def query_bookable_resources(
         self,

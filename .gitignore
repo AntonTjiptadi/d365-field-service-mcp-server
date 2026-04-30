@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 .venv/
+*.backup
+build.log
+azure-api-url.txt
+azure-mcp-url.txt
